@@ -1,6 +1,6 @@
 # Sign Language To Text/Speech
 
-Final Year Project
+Final Year Project CSE Project
 
 ### Collaborators
 1. Dherya Pratap Singh Rana - [Github](https://github.com/ranaDherya)
