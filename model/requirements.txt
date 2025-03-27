@@ -1,0 +1,11 @@
+opencv-python
+cvzone
+mediapipe
+tensorflow==2.13.0
+keras==2.13.1
+Pillow
+numpy
+pandas
+seaborn
+scikit-learn
+matplotlib
