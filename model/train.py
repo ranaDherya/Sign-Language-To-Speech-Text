@@ -1,72 +1,99 @@
+import os
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout, BatchNormalization
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+import numpy as np
 
-# Hyperparameters
-IMG_SIZE = (224, 224)  # Standard size for MobileNetV2
-BATCH_SIZE = 16
-EPOCHS = 50
-LEARNING_RATE = 0.00098
+# Paths
+DATA_DIR = "Data"
+MODEL_SAVE_PATH = "word_model/keras_model.h5"
+LABELS_SAVE_PATH = "word_model/labels.txt"
+IMG_SIZE = 224
+BATCH_SIZE = 32
+EPOCHS = 30
 
-DATASET_DIR = "Data"
+# 1. Data Loading and Augmentation
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    validation_split=0.2,
+    zoom_range=0.2,
+    rotation_range=15,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    horizontal_flip=True
+)
 
-def split_dataset(dataset_dir, train_dir, val_dir, split_ratio=0.8):
-    """Splits dataset into train and validation sets while handling the nested 'images' folder."""
-    if not os.path.exists(train_dir):
-        os.makedirs(train_dir)
-    if not os.path.exists(val_dir):
-        os.makedirs(val_dir)
+train_generator = train_datagen.flow_from_directory(
+    DATA_DIR,
+    target_size=(IMG_SIZE, IMG_SIZE),
+    batch_size=BATCH_SIZE,
+    class_mode='categorical',
+    subset='training',
+    shuffle=True
+)
 
-    for category in os.listdir(dataset_dir):
-        category_path = os.path.join(dataset_dir, category, "images")  # Access "images" folder inside each class
-        if not os.path.isdir(category_path):
-            continue  # Skip non-directory files
+val_generator = train_datagen.flow_from_directory(
+    DATA_DIR,
+    target_size=(IMG_SIZE, IMG_SIZE),
+    batch_size=BATCH_SIZE,
+    class_mode='categorical',
+    subset='validation',
+    shuffle=False
+)
 
-        images = os.listdir(category_path)
-        random.shuffle(images)
+# Save label mapping
+labels = list(train_generator.class_indices.keys())
+with open(LABELS_SAVE_PATH, "w") as f:
+    for label in labels:
+        f.write(label + "\n")
 
-        split_index = int(len(images) * split_ratio)
-        train_images = images[:split_index]
-        val_images = images[split_index:]
+# 2. Load Base Model
+base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(IMG_SIZE, IMG_SIZE, 3))
+base_model.trainable = False  # Initially freeze base
 
-        # Create category directories in train/val folders
-        os.makedirs(os.path.join(train_dir, category), exist_ok=True)
-        os.makedirs(os.path.join(val_dir, category), exist_ok=True)
+# 3. Add Custom Layers
+x = base_model.output
+x = GlobalAveragePooling2D()(x)
+x = BatchNormalization()(x)
+x = Dropout(0.3)(x)
+x = Dense(128, activation='relu')(x)
+x = Dropout(0.3)(x)
+predictions = Dense(len(labels), activation='softmax')(x)
 
-        # Move images
-        for img in train_images:
-            shutil.copy(os.path.join(category_path, img), os.path.join(train_dir, category, img))
+model = Model(inputs=base_model.input, outputs=predictions)
 
-        for img in val_images:
-            shutil.copy(os.path.join(category_path, img), os.path.join(val_dir, category, img))
+# 4. Compile and Train (Stage 1)
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-# Split dataset
-split_dataset(DATASET_DIR, train_dir, val_dir)
+checkpoint = ModelCheckpoint(MODEL_SAVE_PATH, monitor='val_accuracy', save_best_only=True, verbose=1)
+early_stop = EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True)
 
-datagen = ImageDataGenerator(rescale=1.0 / 255, validation_split=0.2)
+print("Starting training (feature extraction)...")
+model.fit(
+    train_generator,
+    epochs=EPOCHS,
+    validation_data=val_generator,
+    callbacks=[checkpoint, early_stop]
+)
 
-train_generator = datagen.flow_from_directory(DATASET_DIR, target_size=IMG_SIZE, batch_size=BATCH_SIZE, class_mode='categorical', subset='training')
-val_generator = datagen.flow_from_directory(DATASET_DIR, target_size=IMG_SIZE, batch_size=BATCH_SIZE, class_mode='categorical', subset='validation')
+# 5. Fine-tune deeper layers of MobileNetV2
+base_model.trainable = True
+fine_tune_at = 100  # Unfreeze from this layer onwards
 
-# Load MobileNetV2 
-base_model = tf.keras.applications.MobileNetV2(input_shape=(224, 224, 3), include_top=False, weights='imagenet')
-base_model.trainable = False
+for layer in base_model.layers[:fine_tune_at]:
+    layer.trainable = False
 
-# Create model
-model = Sequential([
-    base_model,
-    GlobalAveragePooling2D(),
-    Dense(256, activation='relu'),
-    Dense(train_generator.num_classes, activation='softmax')
-])
+model.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss='categorical_crossentropy', metrics=['accuracy'])
 
-# Compile model
-model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss='categorical_crossentropy', metrics=['accuracy'])
+print("Starting fine-tuning (partial unfreeze)...")
+model.fit(
+    train_generator,
+    epochs=EPOCHS,
+    validation_data=val_generator,
+    callbacks=[checkpoint, early_stop]
+)
 
-# Train model
-history = model.fit(train_generator, validation_data=val_generator, epochs=EPOCHS, batch_size=BATCH_SIZE)
-
-# Save model
-model.save("keras_model.h5")
+print("Training complete. Model saved to:", MODEL_SAVE_PATH)

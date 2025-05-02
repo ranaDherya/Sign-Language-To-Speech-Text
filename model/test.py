@@ -5,10 +5,10 @@ import math
 from cvzone.HandTrackingModule import HandDetector
 
 # Load the trained model
-model = tf.keras.models.load_model("5h model/keras_model.h5")
+model = tf.keras.models.load_model("word_model/keras_model.h5")
 
 # Load labels
-with open("5h model/labels.txt", "r") as f:
+with open("word_model/labels.txt", "r") as f:
     labels = [line.strip() for line in f.readlines()]
 
 # Initialize Hand Detector

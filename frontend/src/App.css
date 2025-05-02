@@ -36,3 +36,77 @@
     transform: rotate(360deg);
   }
 }
+
+/* General Styles */
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f8f9fa;
+  color: #333;
+}
+
+.app {
+  text-align: center;
+}
+
+/* Hero Section */
+.hero {
+  background: linear-gradient(to right, #4facfe, #00f2fe);
+  color: white;
+  padding: 80px 20px;
+}
+
+.hero h1 {
+  font-size: 3rem;
+  margin-bottom: 20px;
+}
+
+.hero p {
+  font-size: 1.2rem;
+  margin-bottom: 30px;
+}
+
+.cta-button {
+  background-color: #fff;
+  color: #007bff;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 30px;
+  font-size: 1rem;
+  text-decoration: none;
+  transition: background-color 0.3s ease;
+}
+
+.cta-button:hover {
+  background-color: #e0e0e0;
+}
+
+/* Features Section */
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 40px 20px;
+  background-color: #fff;
+}
+
+.feature-card {
+  background-color: #f1f1f1;
+  border-radius: 16px;
+  padding: 30px;
+  margin: 15px;
+  width: 280px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.feature-card h2 {
+  margin-bottom: 10px;
+}
+
+/* Footer */
+.footer {
+  background-color: #212529;
+  color: #ccc;
+  padding: 20px;
+  margin-top: 40px;
+}
